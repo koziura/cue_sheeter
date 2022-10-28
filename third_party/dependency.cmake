@@ -37,20 +37,13 @@ ExternalProject_Add(
 	TEST_COMMAND ""
 )
 
-message(${CMAKE_BUILD_TYPE})
-
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-	set(DEP_LIBRARIES "FLACd")
-else()
-	set(DEP_LIBRARIES "FLAC")
-endif()
-
-if(WIN32)
-	set(DEP_LINK_DIRS "${DEP_INSTALL_DIR}/libs")
-else()
-	set(DEP_LINK_DIRS "${DEP_INSTALL_DIR}/lib")
-endif()
-message("END")
+set(DEP_LIBRARIES ${DEP_LIBRARIES}
+	optimized FLAC
+	debug FLACd
+)
+set(DEP_LINK_DIRS ${DEP_LINK_DIRS}
+	"${DEP_INSTALL_DIR}/lib"
+)
 
 set(THIRD_INCLUDE_DIRS
 	${THIRD_INCLUDE_DIRS}
@@ -58,3 +51,4 @@ set(THIRD_INCLUDE_DIRS
 	${CMAKE_CURRENT_LIST_DIR}/fmt/include;
 )
 
+message("END")
