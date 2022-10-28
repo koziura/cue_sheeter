@@ -13,8 +13,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 set(THIRD_PARTY_DIR "${PROJECT_SOURCE_DIR}/third_party")
 
-include(${THIRD_PARTY_DIR}/fmt/CMakeLists.txt)
-include(${THIRD_PARTY_DIR}/flac/CMakeLists.txt)
+include(third_party/dependency.cmake)
 
 if(WIN32)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd6387")
@@ -22,12 +21,12 @@ endif()
 
 add_definitions(
 	-D_CRT_SECURE_NO_WARNINGS
-	-DFLAC__NO_DLL
 	${THIRD_DEFINES}
 )
 
 link_directories(
 	${THIRD_LINK_DIRS}
+	${DEP_LINK_DIRS}
 )
 
 include_directories(
@@ -50,6 +49,9 @@ set(PROJECT_SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
+add_dependencies(${PROJECT_NAME} ${DEP_PROJECTS})
+
+target_link_libraries(${PROJECT_NAME} ${DEP_LIBRARIES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})

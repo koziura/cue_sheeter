@@ -1,0 +1,60 @@
+###############
+# THIRD PARTY #
+###############
+
+message("Dependency Projects:")
+
+add_definitions(
+	-DFLAC__NO_DLL
+	-DFMT_HEADER_ONLY
+)
+
+set(DEP_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/dependency)
+set(DEP_PROJECTS dep_flac)
+set(FLAC_DEBUG_POSTFIX d)
+
+include(ExternalProject)
+ExternalProject_Add(
+	dep_flac
+	GIT_REPOSITORY "https://github.com/xiph/flac.git"
+	GIT_SHALLOW 1
+	UPDATE_COMMAND ""
+	PATCH_COMMAND ""
+	CMAKE_ARGS
+		-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+		-DCMAKE_INSTALL_PREFIX=${DEP_INSTALL_DIR}
+		-DCMAKE_DEBUG_POSTFIX=${FLAC_DEBUG_POSTFIX}
+		-DBUILD_CXXLIBS=OFF
+		-DBUILD_PROGRAMS=OFF
+		-DBUILD_EXAMPLES=OFF
+		-DBUILD_TESTING=OFF
+		-DBUILD_DOCS=OFF
+		-DINSTALL_MANPAGES=OFF
+		-DINSTALL_PKGCONFIG_MODULES=OFF
+		-DINSTALL_CMAKE_CONFIG_MODULE=OFF
+		-DWITH_OGG=OFF
+		-DBUILD_SHARED_LIBS=OFF
+	TEST_COMMAND ""
+)
+
+message(${CMAKE_BUILD_TYPE})
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(DEP_LIBRARIES "FLACd")
+else()
+	set(DEP_LIBRARIES "FLAC")
+endif()
+
+if(WIN32)
+	set(DEP_LINK_DIRS "${DEP_INSTALL_DIR}/libs")
+else()
+	set(DEP_LINK_DIRS "${DEP_INSTALL_DIR}/lib")
+endif()
+message("END")
+
+set(THIRD_INCLUDE_DIRS
+	${THIRD_INCLUDE_DIRS}
+	${DEP_INSTALL_DIR}/include
+	${CMAKE_CURRENT_LIST_DIR}/fmt/include;
+)
+
