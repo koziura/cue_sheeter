@@ -1,5 +1,5 @@
 build/
 bin/*.exe
 bin/cue_sheeter*
-*.user
+*.user*
 *.DS_Store
