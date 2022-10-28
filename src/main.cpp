@@ -3,12 +3,36 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <set>
 #include <fmt/format.h>
 
 #include <FLAC/format.h>
 #include <FLAC/metadata.h>
 
 namespace fs = std::filesystem;
+
+struct cvt_toupper {
+	char operator()(const std::string::value_type& v) const {
+		return static_cast<std::string::value_type>(std::toupper(v));
+	}
+};
+struct cvt_tolower {
+	char operator()(const std::string::value_type& v) const {
+		return static_cast<std::string::value_type>(std::tolower(v));
+	}
+};
+template <typename T>
+inline std::string string_to_copy(const std::string& source) {
+	static_assert(
+		std::is_same<T, cvt_toupper>::value ||
+		std::is_same<T, cvt_tolower>::value,
+		"type must be cvt_toupper or cvt_tolower"
+	);
+	std::string result;
+	result.reserve(source.size());
+	std::transform(source.begin(), source.end(), std::back_inserter(result), T());
+	return result;
+}
 
 std::string tag_parser(bool& ok, std::string_view source, std::string_view tag, std::string_view remove = {}) {
 	std::string value;
@@ -41,7 +65,10 @@ int main(int argc, char *argv[]) {
 		path = fs::absolute("cue_template.txt");
 	}
 
-	std::ifstream ifs(path.string());
+	std::ifstream ifs;
+	if (path.filename().string() == "cue_template.txt") {
+		ifs.open(path);
+	}
 
 	if (ifs.is_open()) {
 		std::string line;
@@ -91,70 +118,75 @@ int main(int argc, char *argv[]) {
 		ifs.close();
 	} else {
 		fmt::print(stdout, "can't open 'cue_template.txt'\n");
-		//return 0;
 	}
 
 	int track{1};
+	std::set<fs::path> tracks;
 	const auto track_mask = "FILE \"{}\" WAVE\n  TRACK {:02} AUDIO\n\tTITLE {}\n\tINDEX 01 00:00:00\n";
 	auto parent_path = path.parent_path().string();
-	for (const auto& entry : fs::directory_iterator(parent_path)) {
+	std::error_code ec;
+	for (const auto& entry : fs::directory_iterator(parent_path, ec)) {
 		const auto& path = entry.path();
+		auto extension = string_to_copy<cvt_tolower>(path.extension().string());
+		if (extension == ".flac") {
+			tracks.emplace(path);
+		}
+	}
+
+	for (const auto& path : tracks) {
 		auto filename = path.filename().string();
 		auto track_title = path.stem().string();
-		auto extension = path.extension().string(); ///todo lower
-		if (extension == ".flac") {
-			
-			FLAC__StreamMetadata* tags{};
-			FLAC__metadata_get_tags(path.string().c_str(), &tags);
-			if (tags) {
-				fmt::print(stdout, "track {} tag:\n", track);
-				for (uint32_t i = 0; i < tags->data.vorbis_comment.num_comments; ++i) {
-					const auto& length = tags->data.vorbis_comment.comments[i].length;
-					std::string comment;
-					comment.resize(length);
-					memcpy(comment.data(), tags->data.vorbis_comment.comments[i].entry, length);
 
-					bool ok{};
-					auto result = tag_parser(ok, comment, "TITLE");
-					if (ok) {
-						track_title = std::move(result);
-					}
+		FLAC__StreamMetadata* tags{};
+		FLAC__metadata_get_tags(path.string().c_str(), &tags);
+		if (tags) {
+			fmt::print(stdout, "track {} tag:\n", track);
+			for (uint32_t i = 0; i < tags->data.vorbis_comment.num_comments; ++i) {
+				const auto& length = tags->data.vorbis_comment.comments[i].length;
+				std::string comment;
+				comment.resize(length);
+				memcpy(comment.data(), tags->data.vorbis_comment.comments[i].entry, length);
 
-					if (album_artist.empty() && !ok) {
-						auto result = tag_parser(ok, comment, "ARTIST");
-						if (ok) {
-							album_artist = std::move(result);
-						}
-					}
-
-					if (album_title.empty() && !ok) {
-						auto result = tag_parser(ok, comment, "ALBUM");
-						if (ok) {
-							album_title = std::move(result);
-						}
-					}
-
-					if (album_date.empty() && !ok) {
-						auto result = tag_parser(ok, comment, "DATE");
-						if (ok) {
-							album_date = std::move(result);
-						}
-					}
-
-					if (album_genre.empty() && !ok) {
-						auto result = tag_parser(ok, comment, "GENRE");
-						if (ok) {
-							album_genre = std::move(result);
-						}
-					}
-
-					fmt::print(stdout, "\t{}\n", comment);
+				bool ok{};
+				auto result = tag_parser(ok, comment, "TITLE");
+				if (ok) {
+					track_title = std::move(result);
 				}
-			}
 
-			track_vals.emplace_back(fmt::format(track_mask, filename, track, track_title));
-			++track;
+				if (album_artist.empty() && !ok) {
+					auto result = tag_parser(ok, comment, "ARTIST");
+					if (ok) {
+						album_artist = std::move(result);
+					}
+				}
+
+				if (album_title.empty() && !ok) {
+					auto result = tag_parser(ok, comment, "ALBUM");
+					if (ok) {
+						album_title = std::move(result);
+					}
+				}
+
+				if (album_date.empty() && !ok) {
+					auto result = tag_parser(ok, comment, "DATE");
+					if (ok) {
+						album_date = std::move(result);
+					}
+				}
+
+				if (album_genre.empty() && !ok) {
+					auto result = tag_parser(ok, comment, "GENRE");
+					if (ok) {
+						album_genre = std::move(result);
+					}
+				}
+
+				fmt::print(stdout, "\t{}\n", comment);
+			}
 		}
+
+		track_vals.emplace_back(fmt::format(track_mask, filename, track, track_title));
+		++track;
 	}
 
 	if (track > 1) {
@@ -180,6 +212,9 @@ int main(int argc, char *argv[]) {
 			ofs.close();
 		}
 	} else {
+		if (ec) {
+			fmt::print(stdout, "{}\n", ec.message());
+		}
 		fmt::print(stdout, "tracks not found!\n");
 	}
 
